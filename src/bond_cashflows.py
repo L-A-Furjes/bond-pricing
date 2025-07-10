@@ -1,86 +1,98 @@
 from datetime import datetime, timedelta
 import pandas as pd
 from pandas.tseries.offsets import DateOffset
+import pandas_market_calendars as mcal
 
+#business_day
+#modified_following
+#dates
+#dataframe
 
-def is_business_day(date):
-    return date.weekday() < 5
+Target = mcal.get_calendar('EUREX')
 
-def modified_following(date):
-    current_date = date
+def is_business_day(date: pd.Timestamp) -> bool :
+    return Target.valid_days(date, date).size > 0
 
-    if is_business_day(current_date):
-        return current_date
+def modified_following(date: pd.Timestamp) -> pd.Timestamp :
+    actual_month = date.month
+
+    if is_business_day(date):
+        return date
     
-    while True:
-        current_date = current_date + timedelta(days = 1)
-        if is_business_day(current_date):
-            break
-    if current_date.month == date.month:
-        return current_date
+    while not is_business_day(date):
+        date = date + timedelta(days = 1)
+
+    if date.month == actual_month:
+        return date
     
-    while True:
-        current_date = current_date - timedelta(days = 1)
-        if is_business_day(current_date):
-            return current_date
+    while not is_business_day(date):
+        date = date - timedelta(days = 1)
+    
+    return date
+
+def generate_coupon_dates(
+    issue_date: str | datetime,
+    maturity_date: str | datetime,
+    frequency: float,
+) -> list[pd.Timestamp]:
     
 
-
-def cashflows(issue_date, maturity_date, coupon_rate, annual_frequency, nominal=100):
     issue_date = pd.to_datetime(issue_date)
     maturity_date = pd.to_datetime(maturity_date)
 
-    months = 12 // annual_frequency
-    actual_date = issue_date
+    step_months = 12//frequency # frequence des coupons
 
-    dates = [issue_date]
-    while actual_date < maturity_date:
-        actual_date += DateOffset(months=months)
-        dates.append(actual_date)
+    dates = []
 
-    # Ajustement calendrier
-    dates = [modified_following(d) for d in dates]
+    while maturity_date > issue_date:
+        dates.append(maturity_date)
+        maturity_date = maturity_date - DateOffset(months=step_months)
+    dates.append(issue_date)
+    dates = dates[::-1]
 
-    # Coupon fixe par période
-    coupon = (coupon_rate / 100) * nominal / annual_frequency
+    return [modified_following(d) for d in dates]
 
-    # Cashflows
-    cashflows = [coupon] * (len(dates) - 2) + [coupon + nominal]
+def cashflows(
+    issue_date: str | datetime,
+    maturity_date: str | datetime,
+    coupon_rate: float,
+    frequency: int,
+    nominal: float = 100
+) -> pd.DataFrame:
 
-    # Fractions ACT/ACT
-    fractions = []
-    for i in range(1, len(dates)):
-        d_prev = dates[i - 1]
+    dates = generate_coupon_dates(issue_date,maturity_date,frequency)
+    datescf = dates[1:]
+    fraction = []
+    
+    
+    coupon = (nominal * coupon_rate )/frequency
+
+    cash = [coupon] * (len(dates) - 2) + [coupon + nominal]
+
+    for i in range(1,len(dates)):
+        d_prev = dates[i-1]
         d_curr = dates[i]
-        d_next = dates[i + 1] if i + 1 < len(dates) else d_curr + (d_curr - d_prev)
 
-        num = (d_curr - d_prev).days
-        denom = (d_next - d_prev).days
-        f = num / denom
-        fractions.append(f)
+        standard_period = (d_prev + DateOffset(months = 12//frequency))
 
+        d_num = (d_curr - d_prev).days
+        d_den = (standard_period - d_prev).days
+
+        fraction.append(d_num/d_den)
+    
     df = pd.DataFrame({
-        'date': dates[1:],
-        'cashflow': cashflows,
-        'fraction': fractions
+        'Dates':datescf,
+        'Cashflows':cash,
+        'Fraction':fraction
     })
 
     return df
 
-            
-if __name__ == "__main__":
-    df = cashflows(
-        issue_date="2024-02-15",
-        maturity_date="2027-02-20",
-        coupon_rate=5,             # 5% annuel
-        annual_frequency=2,        # semi-annuel
-        nominal=100                # nominal
-    )
-    print(df)
-
-
-
-
 
         
+
+if __name__ == '__main__':
+    df = cashflows('2022-02-20','2025-03-25',0.05,2,nominal=1000)
+    print(df)
+
 
