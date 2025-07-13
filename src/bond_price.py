@@ -28,7 +28,7 @@ def price_dirty(cf_df:pd.DataFrame, settle_date: Union [str,pd.Timestamp],yld: f
 
     settle_date = pd.to_datetime(settle_date)
     
-    future_cf = cf_df[cf_df['Dates'] > settle_date]
+    future_cf = cf_df[cf_df['Dates'] >= settle_date]
     if future_cf.empty:
         return 0.0
 
@@ -69,8 +69,10 @@ def accrued_interest(cf_df:pd.DataFrame,issue_date: Union [str, pd.Timestamp], s
 # ---------------------------------------------------------------------
 # 3. Clean price
 # ---------------------------------------------------------------------
-def price_clean(dirty: float, accrued: float) -> float:
-    return dirty - accrued
+def price_clean(cf_df: pd.DataFrame, settle_date : Union[str,datetime],yld: float, issue_date : Union[str,datetime],coupon_rate:float, frequency:int, nominal: float ) -> float:
+    dirty = price_dirty(cf_df,settle_date,yld)
+    ai = accrued_interest(cf_df,issue_date,settle_date,coupon_rate,frequency,nominal)
+    return dirty - ai
 
 
 
@@ -80,10 +82,8 @@ def price_clean(dirty: float, accrued: float) -> float:
 # ---------------------------------------------------------------------
 
 if __name__ == '__main__':
-    df = cashflows('2024-01-01','2029-01-01',0.05,1,nominal=1000)
-    df_dirty = price_dirty(df,'2024-09-01',0.05)
-    df_ai = accrued_interest(df, '2024-01-01', '2024-09-01', 0.05, 1, nominal=1000)
-    df_clean = price_clean(df_dirty,df_ai)
+    df = cashflows('2024-01-01','2029-01-01',0.05,2,nominal=1000)
+    df_clean = price_clean(df,'2024-01-01',0.02,'2024-01-01',0.05,2,1000)
     print(df_clean)
 
 
