@@ -55,7 +55,11 @@ def accrued_interest(cf_df:pd.DataFrame,issue_date: Union [str, pd.Timestamp], s
     
     last_coupon = df_Dates[df_Dates <= settle_date].iloc[-1] if not df_Dates[df_Dates <= settle_date].empty else issue_date
 
-    next_coupon = df_Dates[df_Dates > settle_date].iloc[0]
+    future_coupons = df_Dates[df_Dates > settle_date]
+    if future_coupons.empty:
+        return 0.0
+
+    next_coupon = future_coupons.iloc[0]
 
 
 
